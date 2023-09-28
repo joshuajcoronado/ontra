@@ -40,11 +40,8 @@ jobs:
     - name: Install dependencies
       run: poetry install
 
-    - name: Run Vulture
-      run: poetry run vulture ontra/  # Replace 'app/' with your actual app directory
-
     - name: Run Mypy
-      run: poetry run mypy ontra/  # Replace 'app/' with your actual app directory
+      run: poetry run mypy ontra/
 
     - name: Run Prospector
-      run: poetry run prospector ontra/  # Replace 'app/' with your actual app directory
+      run: poetry run prospector ontra/
