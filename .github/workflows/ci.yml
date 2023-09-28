@@ -1,0 +1,50 @@
+name: Python CI
+
+on: [push, pull_request]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    container:
+      image: python:3.11.5-slim
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v2
+
+    - name: Install Poetry
+      run: |
+        pip install -U pip
+        pip install poetry
+
+    - name: Install dependencies
+      run: poetry install
+
+    - name: Run Pytest
+      run: poetry run pytest
+
+  lint:
+    runs-on: ubuntu-latest
+    container:
+      image: python:3.11.5-slim
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v2
+
+    - name: Install Poetry
+      run: |
+        pip install -U pip
+        pip install poetry
+
+    - name: Install dependencies
+      run: poetry install
+
+    - name: Run Vulture
+      run: poetry run vulture ontra/  # Replace 'app/' with your actual app directory
+
+    - name: Run Mypy
+      run: poetry run mypy ontra/  # Replace 'app/' with your actual app directory
+
+    - name: Run Prospector
+      run: poetry run prospector ontra/  # Replace 'app/' with your actual app directory
