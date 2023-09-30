@@ -1,33 +1,39 @@
-# Define the Terraform commands
-TF_APPLY_ECR = terraform apply -target=aws_ecr_repository.ontra_repository -auto-approve
-TF_APPLY = terraform apply -auto-approve
-TF_DESTROY = terraform destroy -auto-approve
+# docker
+DOCKER_BUILDER_NAME = ontrabuilder
 
-# Define the create target
-create:
-	@echo "Applying Terraform to create ECR repository..."
-	@$(TF_APPLY_ECR)
-	@echo "Login into our ECR repo"
-	@eval $$(terraform output -json | jq -r '.docker_login_command.value')
-	@echo "Building Docker image..."
-	@docker build -t ontra -f Containerfile .
-	@echo "Tag the Docker image..."
-	@eval $$(terraform output -json | jq -r '.docker_tag_command.value')
-	@echo "PUSH the image..."
-	@eval $$(terraform output -json | jq -r '.docker_push_command.value')
-	@echo "Applying Terraform to create remaining resources..."
-	@$(TF_APPLY)
+# vars to use
+export DOCKER_CLI_EXPERIMENTAL=enabled
+export TF_VAR_region=us-west-2
+export TF_VAR_repo_name=ontra
+export TF_VAR_image_tag=4.0.0
+export TF_VAR_image_arch=arm64
 
-# Define the destroy target
+build:
+	@echo "Create the ECR image registry..."
+	@terraform apply -target=aws_ecr_repository.ontra_repository -auto-approve
+	@echo "Now, let's login into ECR"
+	@ECR_REPO_URL=$$(terraform output -raw image_repo) && \
+	 aws ecr get-login-password --region $${TF_VAR_region} | docker login --username AWS --password-stdin $${ECR_REPO_URL}
+	@if ! docker buildx ls | grep -q ${DOCKER_BUILDER_NAME}; then \
+		echo "Creating a new builder instance '${DOCKER_BUILDER_NAME}'..."; \
+		docker buildx create --use --name ${DOCKER_BUILDER_NAME} --platform linux/${TF_VAR_image_arch}; \
+	else \
+		echo "'${DOCKER_BUILDER_NAME}' instance already exists. Using existing instance..."; \
+		docker buildx use ${DOCKER_BUILDER_NAME}; \
+	fi
+	@echo "Let's build our image!"
+	@ECR_REPO_URL=$$(terraform output -raw image_repo) && \
+     docker buildx build --platform linux/${TF_VAR_image_arch} -t $${ECR_REPO_URL}/${TF_VAR_repo_name}:${TF_VAR_image_tag} -f Containerfile . --push
+	@echo "Apply the rest of the terraform..."
+	@terraform apply -auto-approve
+
 destroy:
-	@echo "Destroying all images in ecr.."
-	@./delete-images.sh  $(shell terraform output -json image_repo_name) $(shell terraform output -json region)
+	@echo "Destroying our image.."
+	@aws ecr batch-delete-image --repository-name ${TF_VAR_repo_name} --image-ids imageTag=${TF_VAR_image_tag} --region ${TF_VAR_region}
 	@echo "Destroying all Terraform resources..."
-	@$(TF_DESTROY)
+	@terraform destroy -auto-approve
 
 get:
-	@echo "Let's test the endpoint..."
+	@echo "Let's test the endpoint at $(shell terraform output -json api_gateway_url)"
+	@echo curl "$(shell terraform output -json api_gateway_url)" -H "Accept: application/json"
 	@curl "$(shell terraform output -json api_gateway_url)" -H "Accept: application/json"
-
-# Define the default target
-all: create

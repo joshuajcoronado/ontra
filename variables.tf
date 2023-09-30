@@ -10,5 +10,10 @@ variable "region" {
 
 variable "image_tag" {
   type = string
-  default = "3.0.0"
+  default = "0.0.1"
+}
+
+variable "image_arch" {
+  type = string
+  default = "arm64"
 }

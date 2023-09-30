@@ -6,7 +6,6 @@ ARG BUILD_VERSION="bookworm"
 
 FROM python:${RUNTIME_VERSION}-${BUILD_VERSION} AS build-image
 
-# Include global args in this stage of the build
 ARG FUNCTION_DIR
 ARG RUNTIME_VERSION
 
@@ -22,9 +21,8 @@ ADD https://github.com/aws/aws-lambda-runtime-interface-emulator/releases/latest
 COPY entry.sh /
 RUN chmod 755 /usr/bin/aws-lambda-rie /entry.sh
 
+# let's use a distroless iamge
 FROM gcr.io/distroless/python3-debian${DEBIAN_VERSION}
-
-
 ARG FUNCTION_DIR
 
 WORKDIR ${FUNCTION_DIR}

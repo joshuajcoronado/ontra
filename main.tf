@@ -1,8 +1,8 @@
 provider "aws" {
-  region = "us-west-2"
+  region = var.region
 }
 
-# ecr
+# ECR stuff
 resource "aws_ecr_repository" "ontra_repository" {
   name = var.name
 
@@ -11,9 +11,10 @@ resource "aws_ecr_repository" "ontra_repository" {
   }
 }
 
+# policy to allow ability to get things from ECR
 resource "aws_iam_policy" "ecr_access_policy" {
   name        = "ecr_access_policy"
-  description = "Allows to pull images from ECR"
+  description = "Allow ability to pull from ECR"
 
   policy = jsonencode({
     Version = "2012-10-17",
@@ -27,8 +28,7 @@ resource "aws_iam_policy" "ecr_access_policy" {
   })
 }
 
-
-# lambda
+# let's generate an IAM policy doc
 data "aws_iam_policy_document" "lambda_assume_role" {
   statement {
     effect = "Allow"
@@ -63,29 +63,31 @@ resource "aws_iam_policy" "lambda_cloudwatch_logs_policy" {
   })
 }
 
-resource "aws_iam_role_policy_attachment" "attach_cloudwatch_logs_policy" {
-  policy_arn = aws_iam_policy.lambda_cloudwatch_logs_policy.arn
-  role       = aws_iam_role.iam_for_lambda.name
-}
-
-# add ecr access policy to the lambda
-resource "aws_iam_role_policy_attachment" "attach_ecr_access_policy" {
-  policy_arn = aws_iam_policy.ecr_access_policy.arn
-  role       = aws_iam_role.iam_for_lambda.name
-}
-
 # add iam role to the lambda
 resource "aws_iam_role" "iam_for_lambda" {
   name               = "iam_for_lambda"
   assume_role_policy = data.aws_iam_policy_document.lambda_assume_role.json
 }
 
+# let the role use the cloudwatch policy
+resource "aws_iam_role_policy_attachment" "attach_cloudwatch_logs_policy" {
+  policy_arn = aws_iam_policy.lambda_cloudwatch_logs_policy.arn
+  role       = aws_iam_role.iam_for_lambda.name
+}
+
+# let the role use the ecr policy
+resource "aws_iam_role_policy_attachment" "attach_ecr_access_policy" {
+  policy_arn = aws_iam_policy.ecr_access_policy.arn
+  role       = aws_iam_role.iam_for_lambda.name
+}
+
+
 # create our lambda
 resource "aws_lambda_function" "ontra_lambda" {
   function_name = var.name
   role          = aws_iam_role.iam_for_lambda.arn
   package_type  = "Image"
-  architectures = ["arm64"]
+  architectures = [var.image_arch]
   image_uri     = "${aws_ecr_repository.ontra_repository.repository_url}:${var.image_tag}"
 }
 
@@ -94,7 +96,7 @@ resource "aws_api_gateway_rest_api" "ontra_api" {
   name        = "OntraAPI"
   description = "API for Ontra Lambda Function"
   endpoint_configuration {
-    types = ["REGIONAL"]
+    types = ["REGIONAL"] # use regional here cause it's cheaper, and we're only deploying to the same region
   }
 }
 
@@ -119,15 +121,14 @@ resource "aws_api_gateway_integration" "lambda_integration" {
   resource_id = aws_api_gateway_resource.time_resource.id
   http_method = aws_api_gateway_method.time_get_method.http_method
 
-  integration_http_method = "POST"
-  type                    = "AWS_PROXY"
+  integration_http_method = "POST" # Lambda function can only be invoked via POST
+  type                    = "AWS_PROXY" # for Lambda proxy integration
   uri                     = aws_lambda_function.ontra_lambda.invoke_arn
 }
 
 # Deploy API
 resource "aws_api_gateway_deployment" "ontra_api_deployment" {
   depends_on = [aws_api_gateway_integration.lambda_integration]
-
   rest_api_id = aws_api_gateway_rest_api.ontra_api.id
   stage_name  = "v1"
 }
