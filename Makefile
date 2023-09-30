@@ -35,5 +35,5 @@ destroy:
 
 get:
 	@echo "Let's test the endpoint at $(shell terraform output -json api_gateway_url)"
-	@echo curl "$(shell terraform output -json api_gateway_url)" -H "Accept: application/json"
-	@curl "$(shell terraform output -json api_gateway_url)" -H "Accept: application/json"
+	@echo curl "$(shell terraform output -json api_gateway_url)"
+	@curl "$(shell terraform output -json api_gateway_url)"
