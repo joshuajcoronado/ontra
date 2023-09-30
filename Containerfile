@@ -1,32 +1,36 @@
-# Let's use a multistage file
-FROM python:3.11.5-slim as builder
+# Define global args
+ARG FUNCTION_DIR="/var/task/"
+ARG RUNTIME_VERSION="3.11"
+ARG DEBIAN_VERSION="12"
+ARG BUILD_VERSION="bookworm"
 
-WORKDIR /app
-# Install system dependencies
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends build-essential \
-    && apt-get clean \
-    && rm -rf /var/lib/apt/lists/*
+FROM python:${RUNTIME_VERSION}-${BUILD_VERSION} AS build-image
 
-# Install Poetry
-RUN pip install -U pip setuptools \
-    && pip install poetry
+ARG FUNCTION_DIR
+ARG RUNTIME_VERSION
 
-# Install dependencies
-COPY pyproject.toml /app/
-COPY poetry.lock /app/
-RUN poetry config virtualenvs.in-project true \
-    && poetry install --no-interaction
+RUN mkdir -p ${FUNCTION_DIR}
 
-FROM python:3.11.5-slim
+COPY app.py ${FUNCTION_DIR}
 
-# # use a non-root user
-RUN useradd --create-home ontra
-WORKDIR /home/ontra
-USER ontra
+# Install Lambda Runtime Interface Client for Python
+RUN python3 -m pip install -U pip awslambdaric --target ${FUNCTION_DIR}
 
-# Copy installed dependencies from builder
-COPY --from=builder /app/.venv /home/ontra/.venv
-COPY ./ontra /home/ontra/ontra
+# install lambda emulator for testing locally
+ADD https://github.com/aws/aws-lambda-runtime-interface-emulator/releases/latest/download/aws-lambda-rie /usr/bin/aws-lambda-rie
+COPY entry.sh /
+RUN chmod 755 /usr/bin/aws-lambda-rie /entry.sh
 
-CMD ["/home/ontra/.venv/bin/python3", "-m", "uvicorn", "ontra.server:app", "--host", "0.0.0.0", "--port", "80"]
+# let's use a distroless iamge
+FROM gcr.io/distroless/python3-debian${DEBIAN_VERSION}
+ARG FUNCTION_DIR
+
+WORKDIR ${FUNCTION_DIR}
+
+# Copy in the built dependencies
+COPY --from=build-image ${FUNCTION_DIR} ${FUNCTION_DIR}
+COPY --from=build-image /usr/bin/aws-lambda-rie /usr/bin/aws-lambda-rie
+COPY --from=build-image /entry.sh /entry.sh
+
+ENTRYPOINT [ "/entry.sh" ]
+CMD [ "app.handler" ]
