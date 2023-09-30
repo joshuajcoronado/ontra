@@ -2,14 +2,14 @@
 
 ## How to
 
-Hi! This repo contains all you need to deploy a small api endpoint to AWS.
-To get started, make sure you have the following things installed locally
-
+Hi! This repo contains all you need to deploy a small api endpoint to AWS that responds to HTTP GET requests and returns a JSON
+payload in the form `{"The current epoch time": <EPOCH_TIME>}` where `<EPOCH_TIME>` is an
+integer representing the current epoch time in seconds.
 ### Requirements
-- install [jq](https://jqlang.github.io/jq/download/)
-- install [terraform](https://developer.hashicorp.com/terraform/tutorials/aws-get-started/install-cli)
-- install [docker](https://docs.docker.com/desktop/)
-- install [aws cli](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html)
+To get started, make sure you have the following things installed locally
+- [terraform](https://developer.hashicorp.com/terraform/tutorials/aws-get-started/install-cli)
+- [docker](https://docs.docker.com/desktop/)
+- [aws cli](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html)
 
 ### Deploy
 ```bash
